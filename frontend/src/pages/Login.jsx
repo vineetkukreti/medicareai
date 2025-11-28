@@ -53,7 +53,7 @@ const Login = () => {
         formBody.append('password', passwordValue);
 
         try {
-            const response = await fetch('http://localhost:8000/auth/login', {
+            const response = await fetch('http://localhost:8000/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',

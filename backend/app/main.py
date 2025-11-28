@@ -1,8 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.api.endpoints import auth, contact, admin, chatbot, symptoms, medications, appointments, health_records, health_dashboard, profile, health_insights
+from app.modules.auth.router import router as auth_router
+from app.modules.contact.router import router as contact_router
+from app.modules.chat.router import router as chat_router
+from app.modules.dashboard.symptoms_router import router as symptoms_router
+from app.modules.medications.router import router as medications_router
+from app.modules.appointments.router import router as appointments_router
+from app.modules.health_records.router import router as health_records_router
+from app.modules.dashboard.router import router as dashboard_router
+from app.modules.dashboard.insights_router import router as insights_router
+from app.modules.voice_agent.router import router as voice_agent_router
 from app.services.rag_service import rag_service
+
+# Import all models to ensure they are registered with Base
+from app.modules.auth import models as auth_models
+from app.modules.contact import models as contact_models
+from app.modules.chat import models as chat_models
+from app.modules.health_records import models as health_records_models
+from app.modules.medications import models as medications_models
+from app.modules.appointments import models as appointments_models
+from app.modules.voice_agent import models as voice_agent_models
+from app.modules.dashboard import models as dashboard_models
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -34,17 +53,17 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(contact.router, prefix="/api", tags=["Contact"])
-app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(chatbot.router, prefix="/api", tags=["Chatbot"])
-app.include_router(symptoms.router, prefix="/api", tags=["Symptoms"])
-app.include_router(medications.router, prefix="/api", tags=["Medications"])
-app.include_router(appointments.router, prefix="/api", tags=["Appointments"])
-app.include_router(health_records.router, prefix="/api", tags=["Health Records"])
-app.include_router(health_dashboard.router, prefix="/api", tags=["Health Dashboard"])
-app.include_router(profile.router, prefix="/api", tags=["Profile"])
-app.include_router(health_insights.router, prefix="/api/insights", tags=["Health Insights"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(contact_router, prefix="/api", tags=["Contact"])
+# Admin endpoints are now in auth and contact routers
+app.include_router(chat_router, prefix="/api", tags=["Chatbot"])
+app.include_router(symptoms_router, prefix="/api", tags=["Symptoms"])
+app.include_router(medications_router, prefix="/api", tags=["Medications"])
+app.include_router(appointments_router, prefix="/api", tags=["Appointments"])
+app.include_router(health_records_router, prefix="/api", tags=["Health Records"])
+app.include_router(dashboard_router, prefix="/api", tags=["Health Dashboard"])
+app.include_router(insights_router, prefix="/api/insights", tags=["Health Insights"])
+app.include_router(voice_agent_router, prefix="/api", tags=["Voice Agent"])
 
 @app.get("/")
 def read_root():
