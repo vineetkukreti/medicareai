@@ -1,16 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import LandingPage from './pages/LandingPage';
-import ChatBot from './pages/ChatBot';
-import SymptomChecker from './pages/SymptomChecker';
-import MedicationTracker from './pages/MedicationTracker';
-import HealthRecords from './pages/HealthRecords';
-import Appointments from './pages/Appointments';
-import HealthInsights from './pages/HealthInsights';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import AdminDashboard from './pages/AdminDashboard';
-import HealthDashboard from './pages/HealthDashboard';
-import ProfileSettings from './pages/ProfileSettings';
+import { LandingPage } from './features/landing';
+import { ChatBot } from './features/chat';
+import { SymptomChecker, HealthInsights, HealthDashboard, ProfileSettings } from './features/dashboard';
+import { MedicationTracker } from './features/medications';
+import { HealthRecords } from './features/health-records';
+import { Appointments } from './features/appointments';
+import { Login, Signup } from './features/auth';
+import { AdminDashboard } from './features/admin';
 
 function App() {
   return (

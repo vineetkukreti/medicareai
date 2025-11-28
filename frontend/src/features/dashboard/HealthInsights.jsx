@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-import HealthChat from '../components/HealthChat';
+import HealthChat from '../chat/components/HealthChat';
 
 const HealthInsights = () => {
     const userId = localStorage.getItem('userId');
