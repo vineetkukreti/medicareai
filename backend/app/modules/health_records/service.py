@@ -129,6 +129,18 @@ class HealthRecordService:
         if not record:
             return False
         
+        # Delete from RAG first
+        try:
+            rag_service.delete_by_metadata(
+                user_id=user_id,
+                data_type="health_record",
+                metadata_key="record_id",
+                metadata_value=record_id
+            )
+            logger.info(f"Deleted health record {record_id} from RAG")
+        except Exception as e:
+            logger.error(f"Error deleting from RAG: {e}")
+        
         # Delete associated file if exists
         if record.file_url:
             filename = record.file_url.split('/')[-1]

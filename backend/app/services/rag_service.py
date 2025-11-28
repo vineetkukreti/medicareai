@@ -160,6 +160,49 @@ class RAGService:
             # Fallback to original order if reranking fails
             return docs[:top_n]
 
+    def delete_by_metadata(self, user_id: int, data_type: str, metadata_key: str, metadata_value: Any):
+        """Delete documents from Qdrant by metadata filter"""
+        try:
+            # Delete points matching the filter
+            self.qdrant.delete(
+                collection_name=self.collection_name,
+                points_selector=qmodels.FilterSelector(
+                    filter=qmodels.Filter(
+                        must=[
+                            qmodels.FieldCondition(
+                                key="user_id",
+                                match=qmodels.MatchValue(value=user_id)
+                            ),
+                            qmodels.FieldCondition(
+                                key="data_type",
+                                match=qmodels.MatchValue(value=data_type)
+                            ),
+                            qmodels.FieldCondition(
+                                key=metadata_key,
+                                match=qmodels.MatchValue(value=metadata_value)
+                            )
+                        ]
+                    )
+                )
+            )
+            logger.info(f"Deleted {data_type} with {metadata_key}={metadata_value} for user {user_id} from RAG")
+        except Exception as e:
+            logger.error(f"Error deleting from RAG: {e}")
+            # Don't raise - deletion from RAG shouldn't block the main operation
+
+    def delete_by_id(self, point_id: str):
+        """Delete a specific document by its point ID"""
+        try:
+            self.qdrant.delete(
+                collection_name=self.collection_name,
+                points_selector=qmodels.PointIdsList(
+                    points=[point_id]
+                )
+            )
+            logger.info(f"Deleted point {point_id} from RAG")
+        except Exception as e:
+            logger.error(f"Error deleting point from RAG: {e}")
+
     def generate_insight(self, user_id: int, query: str) -> str:
         """Generate insight using RAG pipeline with security audit logging"""
         try:

@@ -12,7 +12,7 @@ from app.modules.auth.models import User
 from datetime import datetime
 
 class AppointmentService:
-    def create_appointment(self, db: Session, appointment: schemas.AppointmentCreate, user: User):
+    def create_appointment(self, db: Session, appointment: schemas.AppointmentCreate, user: User, background_tasks=None):
         # Validate appointment date is in the future
         current_time = datetime.now()
         check_date = appointment.appointment_date
@@ -28,35 +28,58 @@ class AppointmentService:
         db.commit()
         db.refresh(db_appointment)
         
-        # Send confirmation email
-        try:
+        # Send confirmation email in background
+        if background_tasks:
             formatted_date = appointment.appointment_date.strftime("%B %d, %Y at %I:%M %p")
-            email_html = get_appointment_confirmation_email(
-                user_name=user.full_name or user.email.split('@')[0],
+            background_tasks.add_task(
+                self._send_confirmation_email,
+                user=user,
                 doctor_name=appointment.doctor_name,
                 specialty=appointment.specialty,
                 appointment_date=formatted_date,
                 reason=appointment.reason
             )
+            
+            # Trigger RAG ingestion in background
+            background_tasks.add_task(
+                self._index_appointment_to_rag,
+                user_id=user.id,
+                appointment_id=db_appointment.id,
+                doctor_name=db_appointment.doctor_name,
+                specialty=db_appointment.specialty,
+                appointment_date=str(db_appointment.appointment_date),
+                reason=db_appointment.reason
+            )
+            
+        return db_appointment
+    
+    def _send_confirmation_email(self, user, doctor_name, specialty, appointment_date, reason):
+        """Background task to send appointment confirmation email"""
+        try:
+            email_html = get_appointment_confirmation_email(
+                user_name=user.full_name or user.email.split('@')[0],
+                doctor_name=doctor_name,
+                specialty=specialty,
+                appointment_date=appointment_date,
+                reason=reason
+            )
             subject = get_appointment_confirmation_subject()
             email_service.send_email(user.email, subject, email_html)
         except Exception as e:
-            # Log error but don't fail the appointment creation
             print(f"Failed to send confirmation email: {e}")
-        
-        # Trigger RAG ingestion
+    
+    def _index_appointment_to_rag(self, user_id, appointment_id, doctor_name, specialty, appointment_date, reason):
+        """Background task to index appointment to RAG"""
         try:
-            content = f"Appointment: Dr. {db_appointment.doctor_name} ({db_appointment.specialty}), Date: {db_appointment.appointment_date}, Reason: {db_appointment.reason}"
+            content = f"Appointment: Dr. {doctor_name} ({specialty}), Date: {appointment_date}, Reason: {reason}"
             rag_service.upsert_data(
-                user_id=user.id,
+                user_id=user_id,
                 data_type="appointment",
                 content=content,
-                metadata={"appointment_id": db_appointment.id}
+                metadata={"appointment_id": appointment_id}
             )
         except Exception as e:
             print(f"Error triggering RAG ingestion: {e}")
-            
-        return db_appointment
 
     def get_user_appointments(self, db: Session, user_id: int, status: str = None):
         query = db.query(models.Appointment).filter(models.Appointment.user_id == user_id)
@@ -101,28 +124,49 @@ class AppointmentService:
         db.commit()
         return db_appointment
 
-    def cancel_appointment(self, db: Session, appointment_id: int, user: User):
+    def cancel_appointment(self, db: Session, appointment_id: int, user: User, background_tasks=None):
         db_appointment = self.get_appointment_by_id(db, appointment_id, user.id)
         if not db_appointment:
             return False
         
+        # Delete from RAG when cancelling
+        try:
+            rag_service.delete_by_metadata(
+                user_id=user.id,
+                data_type="appointment",
+                metadata_key="appointment_id",
+                metadata_value=appointment_id
+            )
+        except Exception as e:
+            print(f"Error deleting from RAG: {e}")
+        
         db_appointment.status = "cancelled"
         db.commit()
         
-        # Send cancellation email
-        try:
+        # Send cancellation email in background
+        if background_tasks:
             formatted_date = db_appointment.appointment_date.strftime("%B %d, %Y at %I:%M %p")
-            email_html = get_appointment_cancellation_email(
-                user_name=user.full_name or user.email.split('@')[0],
+            background_tasks.add_task(
+                self._send_cancellation_email,
+                user=user,
                 doctor_name=db_appointment.doctor_name,
                 appointment_date=formatted_date
+            )
+        
+        return True
+    
+    def _send_cancellation_email(self, user, doctor_name, appointment_date):
+        """Background task to send appointment cancellation email"""
+        try:
+            email_html = get_appointment_cancellation_email(
+                user_name=user.full_name or user.email.split('@')[0],
+                doctor_name=doctor_name,
+                appointment_date=appointment_date
             )
             subject = get_appointment_cancellation_subject()
             email_service.send_email(user.email, subject, email_html)
         except Exception as e:
             print(f"Failed to send cancellation email: {e}")
-        
-        return True
 
     def get_doctors_list(self):
         # This is a mock list - in production, this would come from a database

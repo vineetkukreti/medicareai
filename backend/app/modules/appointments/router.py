@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -12,6 +12,7 @@ router = APIRouter()
 @router.post("/appointments", response_model=schemas.AppointmentResponse)
 async def create_appointment(
     appointment: schemas.AppointmentCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -19,7 +20,7 @@ async def create_appointment(
     Book a new appointment
     """
     try:
-        return appointment_service.create_appointment(db, appointment, current_user)
+        return appointment_service.create_appointment(db, appointment, current_user, background_tasks)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -90,13 +91,14 @@ async def update_appointment_status(
 @router.delete("/appointments/{appointment_id}")
 async def cancel_appointment(
     appointment_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Cancel an appointment
     """
-    success = appointment_service.cancel_appointment(db, appointment_id, current_user)
+    success = appointment_service.cancel_appointment(db, appointment_id, current_user, background_tasks)
     
     if not success:
         raise HTTPException(status_code=404, detail="Appointment not found")

@@ -31,10 +31,11 @@ const LandingPage = () => {
 
       // If either is missing or invalid, fetch from API
       if (!storedEmail || !storedName) {
-        const userId = localStorage.getItem('userId');
-        // Only fetch if we have a userId and it's not undefined
-        if (userId && userId !== 'undefined' && userId !== 'null') {
-          axios.get(`http://localhost:8000/api/profile/${userId}`)
+        // Only fetch if we have a token
+        if (token) {
+          axios.get('http://localhost:8000/api/auth/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
             .then(response => {
               const email = response.data.email;
               const fullName = response.data.full_name;

@@ -50,3 +50,34 @@ def process_refresh_embeddings_task(user_id: int):
         dashboard_service.process_refresh_embeddings(user_id, db)
     finally:
         db.close()
+
+@router.delete("/clear")
+async def clear_rag_data(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Clear all RAG vector data for the authenticated user.
+    Useful for testing or when user wants to reset their health insights.
+    """
+    try:
+        from app.services.rag_service import rag_service
+        from qdrant_client.http import models as qmodels
+        
+        rag_service.qdrant.delete(
+            collection_name=rag_service.collection_name,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="user_id",
+                            match=qmodels.MatchValue(value=current_user.id)
+                        )
+                    ]
+                )
+            )
+        )
+        logger.info(f"Cleared all RAG data for user {current_user.id}")
+        return {"message": f"All health insights data cleared for user {current_user.email}"}
+    except Exception as e:
+        logger.error(f"Error clearing RAG data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -20,6 +20,11 @@ const HealthDashboard = () => {
     };
 
     const userId = getUserId();
+    const token = localStorage.getItem('token');
+
+    const config = {
+        headers: { Authorization: `Bearer ${token}` }
+    };
 
     useEffect(() => {
         // Check if userId is valid
@@ -37,7 +42,7 @@ const HealthDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:8000/api/health/dashboard/${userId}`);
+            const response = await axios.get('http://localhost:8000/api/health/dashboard', config);
             setDashboardData(response.data);
             setError('');
         } catch (err) {
@@ -70,10 +75,11 @@ const HealthDashboard = () => {
 
         try {
             const response = await axios.post(
-                `http://localhost:8000/api/health/upload?user_id=${userId}`,
+                'http://localhost:8000/api/health/upload',
                 formData,
                 {
                     headers: {
+                        ...config.headers,
                         'Content-Type': 'multipart/form-data',
                     },
                 }

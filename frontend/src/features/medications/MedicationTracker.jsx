@@ -18,8 +18,14 @@ const MedicationTracker = () => {
         notes: ''
     });
 
-    // Get user ID from localStorage (assuming it's stored during login)
-    const userId = localStorage.getItem('userId') || 1;
+    // Get user ID and token from localStorage
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('token');
+
+    // Axios config with auth header
+    const config = {
+        headers: { Authorization: `Bearer ${token}` }
+    };
 
     // Fetch medications on component mount
     useEffect(() => {
@@ -29,7 +35,7 @@ const MedicationTracker = () => {
     const fetchMedications = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:8000/api/medications/${userId}`);
+            const response = await axios.get('http://localhost:8000/api/medications', config);
             setMedications(response.data);
             setError('');
         } catch (err) {
@@ -57,14 +63,16 @@ const MedicationTracker = () => {
                 // Update existing medication
                 await axios.put(
                     `http://localhost:8000/api/medications/${editingMedication.id}`,
-                    formData
+                    formData,
+                    config
                 );
                 setSuccess('Medication updated successfully!');
             } else {
                 // Create new medication
                 await axios.post(
-                    `http://localhost:8000/api/medications?user_id=${userId}`,
-                    formData
+                    'http://localhost:8000/api/medications',
+                    formData,
+                    config
                 );
                 setSuccess('Medication added successfully!');
             }
@@ -111,7 +119,7 @@ const MedicationTracker = () => {
         setError('');
 
         try {
-            await axios.delete(`http://localhost:8000/api/medications/${medicationId}`);
+            await axios.delete(`http://localhost:8000/api/medications/${medicationId}`, config);
             setSuccess('Medication deleted successfully!');
 
             // Refresh medications list

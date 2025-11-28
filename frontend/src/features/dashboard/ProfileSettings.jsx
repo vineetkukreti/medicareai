@@ -31,6 +31,11 @@ const ProfileSettings = () => {
     };
 
     const userId = getUserId();
+    const token = localStorage.getItem('token');
+
+    const config = {
+        headers: { Authorization: `Bearer ${token}` }
+    };
 
     const navigate = useNavigate();
 
@@ -58,7 +63,7 @@ const ProfileSettings = () => {
     const fetchProfile = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:8000/api/profile/${userId}`);
+            const response = await axios.get('http://localhost:8000/api/auth/profile', config);
             setProfileData({
                 full_name: response.data.full_name || '',
                 email: response.data.email || '',
@@ -93,7 +98,7 @@ const ProfileSettings = () => {
 
         try {
             await axios.put(
-                `http://localhost:8000/api/profile/${userId}`,
+                'http://localhost:8000/api/auth/profile',
                 {
                     full_name: profileData.full_name,
                     phone_number: profileData.phone_number,
@@ -102,7 +107,8 @@ const ProfileSettings = () => {
                     address: profileData.address,
                     emergency_contact_name: profileData.emergency_contact_name,
                     emergency_contact_phone: profileData.emergency_contact_phone
-                }
+                },
+                config
             );
             setSuccess('Profile updated successfully!');
             setTimeout(() => setSuccess(''), 3000);
@@ -143,10 +149,11 @@ const ProfileSettings = () => {
 
             try {
                 const response = await axios.post(
-                    `http://localhost:8000/api/health/upload?user_id=${userId}`,
+                    'http://localhost:8000/api/health/upload',
                     formData,
                     {
                         headers: {
+                            ...config.headers,
                             'Content-Type': 'multipart/form-data',
                         },
                     }

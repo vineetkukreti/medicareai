@@ -21,56 +21,58 @@ async def upload_health_data(
     """
     return await dashboard_service.upload_health_data(db, user_id, file)
 
-@router.get("/health/profile/{user_id}", response_model=schemas.HealthProfileResponse)
-async def get_health_profile(user_id: int, db: Session = Depends(get_db)):
+@router.get("/health/profile", response_model=schemas.HealthProfileResponse)
+async def get_health_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    Get user's health profile
+    Get health profile for authenticated user
     """
-    profile = dashboard_service.get_health_profile(db, user_id)
+    profile = dashboard_service.get_health_profile(db, current_user.id)
     if not profile:
         raise HTTPException(status_code=404, detail="Health profile not found")
     return profile
 
-@router.get("/health/sleep/{user_id}", response_model=List[schemas.SleepRecordResponse])
+@router.get("/health/sleep", response_model=List[schemas.SleepRecordResponse])
 async def get_sleep_records(
-    user_id: int,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 30
 ):
     """
-    Get sleep records for a user
+    Get sleep records for authenticated user
     """
-    return dashboard_service.get_sleep_records(db, user_id, start_date, end_date)
+    return dashboard_service.get_sleep_records(db, current_user.id, limit)
 
-@router.get("/health/activity/{user_id}", response_model=List[schemas.ActivityRecordResponse])
+@router.get("/health/activity", response_model=List[schemas.ActivityRecordResponse])
 async def get_activity_records(
-    user_id: int,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 30
 ):
     """
-    Get activity records for a user
+    Get activity records for authenticated user
     """
-    return dashboard_service.get_activity_records(db, user_id, start_date, end_date)
+    return dashboard_service.get_activity_records(db, current_user.id, limit)
 
-@router.get("/health/vitals/{user_id}", response_model=List[schemas.VitalRecordResponse])
+@router.get("/health/vitals", response_model=List[schemas.VitalRecordResponse])
 async def get_vital_records(
-    user_id: int,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 30
+):
+    """
+    Get vital records for authenticated user
+    """
+    return dashboard_service.get_vital_records(db, current_user.id, limit)
+
+@router.get("/health/dashboard", response_model=schemas.DashboardSummary)
+async def get_dashboard_summary(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get vital records for a user
+    Get comprehensive dashboard summary for authenticated user
     """
-    return dashboard_service.get_vital_records(db, user_id, start_date, end_date, limit)
-
-@router.get("/health/dashboard/{user_id}", response_model=schemas.DashboardSummary)
-async def get_dashboard_summary(user_id: int, db: Session = Depends(get_db)):
-    """
-    Get comprehensive dashboard summary with today's stats, week trends, and month averages
-    """
-    return dashboard_service.get_dashboard_summary(db, user_id)
+    return dashboard_service.get_dashboard_summary(db, current_user.id)

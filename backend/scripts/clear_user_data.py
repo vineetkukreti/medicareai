@@ -1,62 +1,132 @@
+#!/usr/bin/env python3
 """
-Script to clear all user data from the database.
-Removes all entries from users and contact_messages tables.
-Admin authentication is handled separately via hardcoded credentials.
+Clear all data for a specific user (database only)
+Run this while the server is running - RAG will be cleared when records are deleted via API
 """
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+import sys
+sys.path.insert(0, '/home/vineet/Desktop/projects/kisanAI/backend')
 
-# Database URL
-DATABASE_URL = "sqlite:///./kisanai.db"
+from app.core.database import SessionLocal
+from app.modules.auth.models import User
+from app.modules.health_records.models import HealthRecord
+from app.modules.medications.models import Medication
+from app.modules.appointments.models import Appointment
+from app.modules.dashboard.models import HealthProfile, SleepRecord, ActivityRecord, VitalRecord, BodyMeasurement
+from app.modules.chat.models import ChatConversation
 
-def clear_database():
-    """Clear all user and contact message data"""
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-    Session = sessionmaker(bind=engine)
-    session = Session()
+USER_EMAIL = "vineet.k@palpx.com"
 
+def clear_user_data():
+    db = SessionLocal()
     try:
-        # Count records before deletion
-        users_count = session.execute(text("SELECT COUNT(*) FROM users")).scalar()
-        contacts_count = session.execute(text("SELECT COUNT(*) FROM contact_messages")).scalar()
-
-        print(f"Found {users_count} users and {contacts_count} contact messages")
-
-        # Delete all contact messages
-        session.execute(text("DELETE FROM contact_messages"))
-        print(f"✓ Deleted all {contacts_count} contact messages")
-
-        # Delete all users
-        session.execute(text("DELETE FROM users"))
-        print(f"✓ Deleted all {users_count} users")
-
-        # Reset auto-increment counters
-        session.execute(text("DELETE FROM sqlite_sequence WHERE name='users'"))
-        session.execute(text("DELETE FROM sqlite_sequence WHERE name='contact_messages'"))
-        print("✓ Reset auto-increment counters")
-
-        # Commit the changes
-        session.commit()
-        print("\n✅ Database cleared successfully!")
-        print("Note: Admin access remains available via hardcoded credentials (admin@gmail.com)")
-
+        # Find user
+        user = db.query(User).filter(User.email == USER_EMAIL).first()
+        
+        if not user:
+            print(f"❌ User not found: {USER_EMAIL}")
+            return
+        
+        user_id = user.id
+        print(f"✅ Found user: {user.email} (ID: {user_id})")
+        print(f"   Name: {user.full_name}")
+        print()
+        
+        total_deleted = 0
+        
+        # Clear Health Records
+        health_records = db.query(HealthRecord).filter(HealthRecord.user_id == user_id).all()
+        count = len(health_records)
+        print(f"🗑️  Deleting {count} health records...")
+        for record in health_records:
+            db.delete(record)
+        total_deleted += count
+        
+        # Clear Medications
+        medications = db.query(Medication).filter(Medication.user_id == user_id).all()
+        count = len(medications)
+        print(f"🗑️  Deleting {count} medications...")
+        for med in medications:
+            db.delete(med)
+        total_deleted += count
+        
+        # Clear Appointments
+        appointments = db.query(Appointment).filter(Appointment.user_id == user_id).all()
+        count = len(appointments)
+        print(f"🗑️  Deleting {count} appointments...")
+        for appt in appointments:
+            db.delete(appt)
+        total_deleted += count
+        
+        # Clear Chat Conversations
+        chats = db.query(ChatConversation).filter(ChatConversation.user_id == user_id).all()
+        count = len(chats)
+        print(f"🗑️  Deleting {count} chat conversations...")
+        for chat in chats:
+            db.delete(chat)
+        total_deleted += count
+        
+        # Clear Dashboard Data
+        health_profile = db.query(HealthProfile).filter(HealthProfile.user_id == user_id).first()
+        if health_profile:
+            print(f"🗑️  Deleting health profile...")
+            db.delete(health_profile)
+            total_deleted += 1
+        
+        sleep_records = db.query(SleepRecord).filter(SleepRecord.user_id == user_id).all()
+        count = len(sleep_records)
+        print(f"🗑️  Deleting {count} sleep records...")
+        for record in sleep_records:
+            db.delete(record)
+        total_deleted += count
+        
+        activity_records = db.query(ActivityRecord).filter(ActivityRecord.user_id == user_id).all()
+        count = len(activity_records)
+        print(f"🗑️  Deleting {count} activity records...")
+        for record in activity_records:
+            db.delete(record)
+        total_deleted += count
+        
+        vital_records = db.query(VitalRecord).filter(VitalRecord.user_id == user_id).all()
+        count = len(vital_records)
+        print(f"🗑️  Deleting {count} vital records...")
+        for record in vital_records:
+            db.delete(record)
+        total_deleted += count
+        
+        body_measurements = db.query(BodyMeasurement).filter(BodyMeasurement.user_id == user_id).all()
+        count = len(body_measurements)
+        print(f"🗑️  Deleting {count} body measurements...")
+        for record in body_measurements:
+            db.delete(record)
+        total_deleted += count
+        
+        # Commit database changes
+        db.commit()
+        print()
+        print("=" * 60)
+        print(f"✅ DATABASE CLEARED - {total_deleted} records deleted")
+        print(f"✅ USER: {USER_EMAIL}")
+        print("=" * 60)
+        print()
+        print("ℹ️  Note: RAG data will be automatically cleaned up when")
+        print("   you use the refresh embeddings endpoint in the app.")
+        
     except Exception as e:
-        session.rollback()
-        print(f"❌ Error clearing database: {e}")
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
     finally:
-        session.close()
-        engine.dispose()
+        db.close()
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("DATABASE CLEANUP SCRIPT")
+    print(f"CLEARING ALL DATA FOR USER: {USER_EMAIL}")
     print("=" * 60)
-    print("\nThis will delete ALL user data and contact messages.")
-    print("Admin access is preserved (hardcoded credentials).\n")
-
-    confirmation = input("Type 'YES' to proceed: ")
-
-    if confirmation == "YES":
-        clear_database()
+    print()
+    
+    confirm = input("Are you sure you want to delete ALL data for this user? (yes/no): ")
+    if confirm.lower() == "yes":
+        clear_user_data()
     else:
         print("❌ Operation cancelled")
