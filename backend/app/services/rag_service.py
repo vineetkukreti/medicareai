@@ -285,6 +285,51 @@ class RAGService:
         except Exception as e:
             logger.error(f"Error generating insight: {e}")
             raise
-
+    def answer_doctor_query(self, patient_id: int, query: str) -> str:
+        """
+        Answer a doctor's query about a specific patient using RAG.
+        Strictly limited to the patient's data.
+        """
+        try:
+            # Security audit log
+            logger.info(f"[SECURITY AUDIT] Doctor RAG query initiated - Patient ID: {patient_id}, Query: '{query[:100]}'")
+            
+            # 1. Retrieve
+            retrieved_docs = self.search(patient_id, query, limit=10)
+            logger.info(f"[SECURITY AUDIT] Retrieved {len(retrieved_docs)} documents for patient {patient_id}")
+            
+            # 2. Rerank
+            reranked_docs = self.rerank(query, retrieved_docs, top_n=5)
+            
+            # 3. Generate
+            context = "\n\n".join([f"Document {i+1}: {doc['content']}" for i, doc in enumerate(reranked_docs)])
+            
+            system_prompt = """You are a clinical AI assistant helping a doctor review a patient's health data.
+            
+            CRITICAL RULES:
+            1. You have access ONLY to the provided context data for this specific patient.
+            2. Do NOT make up information. If the answer is not in the context, say "I don't see that information in the patient's records."
+            3. Be concise, professional, and clinically relevant.
+            4. Do not provide medical advice or diagnosis to the doctor; simply summarize the available data to aid their decision.
+            
+            CONTEXT DATA:
+            The context below contains the patient's personal info, medications, health records, and recent activity/sleep summaries.
+            """
+            
+            user_prompt = f"Context:\n{context}\n\nDoctor's Question: {query}\n\nAnswer:"
+            
+            response = self.openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3, # Lower temperature for more factual responses
+            )
+            
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error answering doctor query: {e}")
+            raise
 # Singleton instance
 rag_service = RAGService()

@@ -34,7 +34,7 @@ const Appointments = () => {
     const fetchDoctors = async () => {
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch('http://localhost:8000/api/appointments/doctors/list', {
+            const response = await fetch('http://localhost:8000/api/doctors/list', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -53,7 +53,7 @@ const Appointments = () => {
         const token = localStorage.getItem('token');
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/api/appointments', {
+            const response = await fetch('http://localhost:8000/api/appointments/my-appointments', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -94,7 +94,7 @@ const Appointments = () => {
         const token = localStorage.getItem('token');
 
         try {
-            const response = await fetch('http://localhost:8000/api/appointments', {
+            const response = await fetch('http://localhost:8000/api/appointments/book', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

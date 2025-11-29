@@ -43,12 +43,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(lambda: None)):
+from app.core.database import get_db
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     Extract current user from JWT token.
-    Note: db dependency is optional and will be provided by the endpoint if needed.
     """
-    from app.core.database import get_db
     from app.models import User
     
     credentials_exception = HTTPException(
@@ -66,11 +66,44 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     
     # Get database session
-    if db is None:
-        db = next(get_db())
+    # Database session is now injected by FastAPI
+    # if db is None:
+    #     db = next(get_db())
     
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
     
     return user
+
+def get_current_doctor(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """
+    Extract current doctor from JWT token.
+    """
+    from app.modules.doctors.models import Doctor
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        role: str = payload.get("role")
+        if email is None or role != "doctor":
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    # Get database session
+    # Database session is now injected by FastAPI
+    # if db is None:
+    #     db = next(get_db())
+    
+    doctor = db.query(Doctor).filter(Doctor.email == email).first()
+    if doctor is None:
+        raise credentials_exception
+    
+    return doctor

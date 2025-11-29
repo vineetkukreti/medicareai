@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, create_access_token
 from app.modules.auth import schemas
 from app.modules.auth.models import User
 from app.modules.auth.service import auth_service
@@ -11,6 +11,41 @@ import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+class AdminLoginRequest(schemas.BaseModel):
+    email: str
+    password: str
+
+@router.post("/admin/login", response_model=schemas.Token)
+def admin_login(login_data: AdminLoginRequest):
+    """
+    Admin login with hardcoded credentials for now.
+    """
+    if login_data.email == "admin@gmail.com" and login_data.password == "admin":
+        try:
+            # Create a token for admin
+            access_token = create_access_token(
+                data={"sub": "admin@gmail.com", "role": "admin"}
+            )
+            return {
+                "access_token": access_token, 
+                "token_type": "bearer",
+                "user_id": 0, # Admin ID
+                "email": "admin@gmail.com",
+                "full_name": "Administrator"
+            }
+        except Exception as e:
+            logger.error(f"Error creating admin token: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Login failed: {str(e)}"
+            )
+    
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid admin credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 @router.post("/signup", response_model=schemas.User)
 def signup(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import ThemeToggle from '../../components/ThemeToggle';
 
 const Signup = () => {
     const [formData, setFormData] = useState({
@@ -52,7 +53,10 @@ const Signup = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-300 relative">
+            <div className="absolute top-4 right-4">
+                <ThemeToggle />
+            </div>
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <Link to="/" className="flex items-center justify-center space-x-3 mb-6">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
@@ -62,7 +66,7 @@ const Signup = () => {
                     </div>
                     <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">MediCareAI</span>
                 </Link>
-                <h2 className="text-center text-3xl font-extrabold text-gray-900">
+                <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
                     Create Your Account
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
@@ -71,7 +75,22 @@ const Signup = () => {
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-blue-100">
+                {/* Role Selection */}
+                <div className="bg-white dark:bg-gray-800 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex">
+                    <button
+                        className="flex-1 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-gray-700 rounded-lg shadow-sm transition-all"
+                    >
+                        Patient
+                    </button>
+                    <Link
+                        to="/doctor/register"
+                        className="flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-center transition-all"
+                    >
+                        Doctor
+                    </Link>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-blue-100 dark:border-gray-700">
                     {success ? (
                         <div className="text-center py-8">
                             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
@@ -100,7 +119,7 @@ const Signup = () => {
                                         required
                                         value={formData.full_name}
                                         onChange={handleChange}
-                                        className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        className="appearance-none block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         placeholder="John Doe"
                                     />
                                 </div>

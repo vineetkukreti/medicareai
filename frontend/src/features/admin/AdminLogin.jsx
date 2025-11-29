@@ -18,12 +18,13 @@ const AdminLogin = () => {
         setError('');
 
         try {
-            const response = await fetch('http://localhost:8000/admin/login', {
+            const { email, password } = formData; // Destructure formData for the body
+            const response = await fetch('http://localhost:8000/api/auth/admin/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ email, password }),
             });
 
             if (!response.ok) {

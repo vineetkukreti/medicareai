@@ -127,6 +127,47 @@ class EmailService:
         
         return self._send_email(user_email, subject, html_content)
     
+    def send_appointment_confirmation_email(
+        self, 
+        user_email: str, 
+        user_name: str, 
+        doctor_name: str, 
+        specialty: str, 
+        appointment_date: str, 
+        reason: str,
+        meeting_link: str = None
+    ) -> bool:
+        """
+        Send appointment confirmation email to patient.
+        
+        Args:
+            user_email: Patient's email
+            user_name: Patient's name
+            doctor_name: Doctor's name
+            specialty: Doctor's specialty
+            appointment_date: Formatted date string
+            reason: Reason for visit
+            meeting_link: Video call link
+            
+        Returns:
+            bool: True if email sent successfully
+        """
+        logger.info(f"📅 Sending appointment confirmation to {user_email}")
+        
+        from app.services.email_templates import get_appointment_confirmation_email, get_appointment_confirmation_subject
+        
+        subject = get_appointment_confirmation_subject()
+        html_content = get_appointment_confirmation_email(
+            user_name, 
+            doctor_name, 
+            specialty, 
+            appointment_date, 
+            reason,
+            meeting_link
+        )
+        
+        return self._send_email(user_email, subject, html_content)
+
     def send_test_email(self, to_email: str) -> bool:
         """
         Send a test email to verify configuration.

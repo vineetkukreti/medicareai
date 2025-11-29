@@ -332,7 +332,7 @@ const HealthChat = ({ userId }) => {
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
                             placeholder="Ask about your health, sleep, or medications..."
-                            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all placeholder-gray-400"
+                            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all placeholder-gray-400"
                             disabled={isLoading}
                         />
                         <button

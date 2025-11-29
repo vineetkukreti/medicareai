@@ -364,7 +364,11 @@ def get_login_alert_subject() -> str:
     """Get subject line for login alert email."""
     return "New Login to Your MediCareAI Account 🔐"
 
-def get_appointment_confirmation_email(user_name: str, doctor_name: str, specialty: str, appointment_date: str, reason: str) -> str:
+def get_appointment_confirmation_email(user_name: str, doctor_name: str,    specialty: str, 
+    appointment_date: str, 
+    reason: str,
+    meeting_link: str = None
+) -> str:
     """
     Appointment confirmation email template.
     
@@ -374,6 +378,7 @@ def get_appointment_confirmation_email(user_name: str, doctor_name: str, special
         specialty: Doctor's specialty
         appointment_date: Date and time of appointment
         reason: Reason for visit
+        meeting_link: Video call link (optional)
         
     Returns:
         HTML email content
@@ -514,6 +519,12 @@ def get_appointment_confirmation_email(user_name: str, doctor_name: str, special
                     <div class="detail-label">Reason for Visit:</div>
                     <div class="detail-value">{reason}</div>
                 </div>
+                {f'''
+                <div class="detail-row">
+                    <div class="detail-label">Video Link:</div>
+                    <div class="detail-value"><a href="{meeting_link}" style="color: #0066CC; text-decoration: none; font-weight: bold;">Join Video Call</a></div>
+                </div>
+                ''' if meeting_link else ''}
             </div>
             
             <p style="font-size: 14px; color: #64748b; margin-top: 25px;">

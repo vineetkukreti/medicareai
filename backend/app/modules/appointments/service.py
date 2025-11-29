@@ -1,191 +1,210 @@
 from sqlalchemy.orm import Session
-from app.modules.appointments import models, schemas
-from app.services.email_service import email_service
-from app.services.email_templates import (
-    get_appointment_confirmation_email,
-    get_appointment_cancellation_email,
-    get_appointment_confirmation_subject,
-    get_appointment_cancellation_subject
-)
-from app.services.rag_service import rag_service
+from fastapi import HTTPException
+from app.modules.appointments.models import Appointment
+from app.modules.doctors.models import Doctor
 from app.modules.auth.models import User
-from datetime import datetime
+from datetime import date, time, datetime, timedelta
+from typing import List
+from app.modules.appointments.schemas import TimeSlot
 
-class AppointmentService:
-    def create_appointment(self, db: Session, appointment: schemas.AppointmentCreate, user: User, background_tasks=None):
-        # Validate appointment date is in the future
-        current_time = datetime.now()
-        check_date = appointment.appointment_date
-        
-        if check_date.tzinfo is not None:
-            check_date = check_date.replace(tzinfo=None)
-            
-        if check_date <= current_time:
-            raise ValueError("Appointment date must be in the future")
-        
-        db_appointment = models.Appointment(**appointment.dict(), user_id=user.id)
-        db.add(db_appointment)
-        db.commit()
-        db.refresh(db_appointment)
-        
-        # Send confirmation email in background
-        if background_tasks:
-            formatted_date = appointment.appointment_date.strftime("%B %d, %Y at %I:%M %p")
-            background_tasks.add_task(
-                self._send_confirmation_email,
-                user=user,
-                doctor_name=appointment.doctor_name,
-                specialty=appointment.specialty,
-                appointment_date=formatted_date,
-                reason=appointment.reason
-            )
-            
-            # Trigger RAG ingestion in background
-            background_tasks.add_task(
-                self._index_appointment_to_rag,
-                user_id=user.id,
-                appointment_id=db_appointment.id,
-                doctor_name=db_appointment.doctor_name,
-                specialty=db_appointment.specialty,
-                appointment_date=str(db_appointment.appointment_date),
-                reason=db_appointment.reason
-            )
-            
-        return db_appointment
+
+def generate_time_slots(start_hour: int = 9, end_hour: int = 17, interval_minutes: int = 30) -> List[dict]:
+    """Generate all possible time slots for a day"""
+    slots = []
+    current = datetime.combine(date.today(), time(start_hour, 0))
+    end = datetime.combine(date.today(), time(end_hour, 0))
     
-    def _send_confirmation_email(self, user, doctor_name, specialty, appointment_date, reason):
-        """Background task to send appointment confirmation email"""
-        try:
-            email_html = get_appointment_confirmation_email(
-                user_name=user.full_name or user.email.split('@')[0],
-                doctor_name=doctor_name,
-                specialty=specialty,
-                appointment_date=appointment_date,
-                reason=reason
-            )
-            subject = get_appointment_confirmation_subject()
-            email_service.send_email(user.email, subject, email_html)
-        except Exception as e:
-            print(f"Failed to send confirmation email: {e}")
+    while current < end:
+        next_time = current + timedelta(minutes=interval_minutes)
+        slots.append({
+            "start_time": current.time().strftime("%H:%M"),
+            "end_time": next_time.time().strftime("%H:%M")
+        })
+        current = next_time
     
-    def _index_appointment_to_rag(self, user_id, appointment_id, doctor_name, specialty, appointment_date, reason):
-        """Background task to index appointment to RAG"""
-        try:
-            content = f"Appointment: Dr. {doctor_name} ({specialty}), Date: {appointment_date}, Reason: {reason}"
-            rag_service.upsert_data(
-                user_id=user_id,
-                data_type="appointment",
-                content=content,
-                metadata={"appointment_id": appointment_id}
-            )
-        except Exception as e:
-            print(f"Error triggering RAG ingestion: {e}")
+    return slots
 
-    def get_user_appointments(self, db: Session, user_id: int, status: str = None):
-        query = db.query(models.Appointment).filter(models.Appointment.user_id == user_id)
-        if status:
-            query = query.filter(models.Appointment.status == status)
-        return query.order_by(models.Appointment.appointment_date).all()
 
-    def get_appointment_by_id(self, db: Session, appointment_id: int, user_id: int):
-        return db.query(models.Appointment).filter(
-            models.Appointment.id == appointment_id,
-            models.Appointment.user_id == user_id
-        ).first()
-
-    def update_appointment(self, db: Session, appointment_id: int, appointment_data: schemas.AppointmentCreate, user_id: int):
-        db_appointment = self.get_appointment_by_id(db, appointment_id, user_id)
-        if not db_appointment:
-            return None
-        
-        # Validate appointment date is in the future
-        current_time = datetime.now()
-        check_date = appointment_data.appointment_date
-        
-        if check_date.tzinfo is not None:
-            check_date = check_date.replace(tzinfo=None)
-            
-        if check_date <= current_time:
-            raise ValueError("Appointment date must be in the future")
-        
-        for key, value in appointment_data.dict().items():
-            setattr(db_appointment, key, value)
-        
-        db.commit()
-        db.refresh(db_appointment)
-        return db_appointment
-
-    def update_appointment_status(self, db: Session, appointment_id: int, status: str, user_id: int):
-        db_appointment = self.get_appointment_by_id(db, appointment_id, user_id)
-        if not db_appointment:
-            return None
-        
-        db_appointment.status = status
-        db.commit()
-        return db_appointment
-
-    def cancel_appointment(self, db: Session, appointment_id: int, user: User, background_tasks=None):
-        db_appointment = self.get_appointment_by_id(db, appointment_id, user.id)
-        if not db_appointment:
-            return False
-        
-        # Delete from RAG when cancelling
-        try:
-            rag_service.delete_by_metadata(
-                user_id=user.id,
-                data_type="appointment",
-                metadata_key="appointment_id",
-                metadata_value=appointment_id
-            )
-        except Exception as e:
-            print(f"Error deleting from RAG: {e}")
-        
-        db_appointment.status = "cancelled"
-        db.commit()
-        
-        # Send cancellation email in background
-        if background_tasks:
-            formatted_date = db_appointment.appointment_date.strftime("%B %d, %Y at %I:%M %p")
-            background_tasks.add_task(
-                self._send_cancellation_email,
-                user=user,
-                doctor_name=db_appointment.doctor_name,
-                appointment_date=formatted_date
-            )
-        
-        return True
+def get_booked_slots(db: Session, doctor_id: int, appointment_date: date) -> List[str]:
+    """Get all booked time slots for a doctor on a specific date"""
+    appointments = db.query(Appointment).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.appointment_date == appointment_date,
+        Appointment.status.in_(["pending", "confirmed"])  # Exclude cancelled/completed
+    ).all()
     
-    def _send_cancellation_email(self, user, doctor_name, appointment_date):
-        """Background task to send appointment cancellation email"""
+    booked_slots = [appt.start_time.strftime("%H:%M") for appt in appointments]
+    return booked_slots
+
+
+def get_available_slots(db: Session, doctor_id: int, appointment_date: date) -> List[TimeSlot]:
+    """Get available time slots for a doctor on a specific date"""
+    # Don't allow booking for past dates
+    if appointment_date < date.today():
+        return []
+    
+    all_slots = generate_time_slots()
+    booked_slots = get_booked_slots(db, doctor_id, appointment_date)
+    
+    available_slots = []
+    for slot in all_slots:
+        is_available = slot["start_time"] not in booked_slots
+        available_slots.append(TimeSlot(
+            start_time=slot["start_time"],
+            end_time=slot["end_time"],
+            is_available=is_available
+        ))
+    
+    return available_slots
+
+
+def check_slot_availability(
+    db: Session,
+    doctor_id: int,
+    appointment_date: date,
+    start_time: time
+) -> bool:
+    """Check if a specific time slot is available"""
+    existing = db.query(Appointment).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.appointment_date == appointment_date,
+        Appointment.start_time == start_time,
+        Appointment.status.in_(["pending", "confirmed"])
+    ).first()
+    
+    return existing is None
+
+
+def book_appointment(
+    db: Session,
+    user_id: int,
+    doctor_id: int,
+    appointment_date: date,
+    start_time: time,
+    end_time: time,
+    reason: str = None,
+    notes: str = None
+) -> Appointment:
+    """Book an appointment with conflict checking"""
+    # Validate doctor exists
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    if not doctor.is_available:
+        raise HTTPException(status_code=400, detail="Doctor is not accepting appointments")
+    
+    # Check if slot is available (atomic check)
+    if not check_slot_availability(db, doctor_id, appointment_date, start_time):
+        raise HTTPException(status_code=409, detail="Time slot already booked")
+    
+    # Prevent booking past dates
+    if appointment_date < date.today():
+        raise HTTPException(status_code=400, detail="Cannot book appointments in the past")
+    
+    # Create appointment
+    appointment = Appointment(
+        user_id=user_id,
+        doctor_id=doctor_id,
+        appointment_date=appointment_date,
+        start_time=start_time,
+        end_time=end_time,
+        reason=reason,
+        notes=notes,
+        status="pending"
+    )
+    
+    db.add(appointment)
+    try:
+        db.commit()
+        db.refresh(appointment)
+    except Exception as e:
+        db.rollback()
+        # Handle unique constraint violation
+        if "uix_doctor_date_time" in str(e):
+            raise HTTPException(status_code=409, detail="Time slot was just booked by another patient")
+        raise HTTPException(status_code=500, detail="Failed to book appointment")
+    
+    return appointment
+
+
+def get_doctor_appointments(db: Session, doctor_id: int, status: str = None) -> List[Appointment]:
+    """Get all appointments for a doctor"""
+    query = db.query(Appointment).filter(Appointment.doctor_id == doctor_id)
+    
+    if status:
+        query = query.filter(Appointment.status == status)
+    
+    return query.order_by(Appointment.appointment_date, Appointment.start_time).all()
+
+
+def get_patient_appointments(db: Session, user_id: int) -> List[Appointment]:
+    """Get all appointments for a patient"""
+    return db.query(Appointment).filter(
+        Appointment.user_id == user_id
+    ).order_by(Appointment.appointment_date.desc()).all()
+
+
+def update_appointment_status(db: Session, appointment_id: int, status: str, doctor_id: int = None) -> Appointment:
+    """Update appointment status (for doctors)"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    # If doctor_id provided, verify it's their appointment
+    if doctor_id and appointment.doctor_id != doctor_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this appointment")
+    
+    valid_statuses = ["pending", "confirmed", "completed", "cancelled"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    # Generate meeting link if confirming
+    if status == "confirmed" and not appointment.meeting_link:
+        # Generate Jitsi Meet link (Real working video call)
+        import uuid
+        unique_id = str(uuid.uuid4())[:8]
+        # Format: https://meet.jit.si/MediCareAI-{appointment_id}-{unique_id}
+        appointment.meeting_link = f"https://meet.jit.si/MediCareAI-{appointment_id}-{unique_id}"
+        
+        # Send confirmation email
         try:
-            email_html = get_appointment_cancellation_email(
-                user_name=user.full_name or user.email.split('@')[0],
-                doctor_name=doctor_name,
-                appointment_date=appointment_date
-            )
-            subject = get_appointment_cancellation_subject()
-            email_service.send_email(user.email, subject, email_html)
+            from app.services.email_service import email_service
+            patient = db.query(User).filter(User.id == appointment.user_id).first()
+            if patient:
+                email_service.send_appointment_confirmation_email(
+                    user_email=patient.email,
+                    user_name=patient.full_name,
+                    doctor_name=appointment.doctor.full_name,
+                    specialty=appointment.doctor.specialty,
+                    appointment_date=f"{appointment.appointment_date} at {appointment.start_time}",
+                    reason=appointment.reason or "Consultation",
+                    meeting_link=appointment.meeting_link
+                )
         except Exception as e:
-            print(f"Failed to send cancellation email: {e}")
+            print(f"Failed to send email: {e}")
+    
+    appointment.status = status
+    db.commit()
+    db.refresh(appointment)
+    
+    return appointment
 
-    def get_doctors_list(self):
-        # This is a mock list - in production, this would come from a database
-        doctors = [
-            {"name": "Dr. Sarah Johnson", "specialty": "Cardiology"},
-            {"name": "Dr. Michael Chen", "specialty": "Dermatology"},
-            {"name": "Dr. Emily Rodriguez", "specialty": "Pediatrics"},
-            {"name": "Dr. David Kumar", "specialty": "Orthopedics"},
-            {"name": "Dr. Lisa Anderson", "specialty": "General Medicine"},
-            {"name": "Dr. James Wilson", "specialty": "Neurology"},
-            {"name": "Dr. Maria Garcia", "specialty": "Gynecology"},
-            {"name": "Dr. Robert Taylor", "specialty": "Psychiatry"},
-        ]
-        
-        specialties = list(set([doc["specialty"] for doc in doctors]))
-        
-        return {
-            "doctors": doctors,
-            "specialties": sorted(specialties)
-        }
 
-appointment_service = AppointmentService()
+def get_patient_info(db: Session, patient_id: int, doctor_id: int) -> User:
+    """Get patient information (only if doctor has appointment with them)"""
+    # Verify doctor has an appointment with this patient
+    appointment = db.query(Appointment).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.user_id == patient_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(status_code=403, detail="No appointment with this patient")
+    
+    patient = db.query(User).filter(User.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    return patient

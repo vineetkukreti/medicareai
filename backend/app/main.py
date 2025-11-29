@@ -11,6 +11,7 @@ from app.modules.health_records.router import router as health_records_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dashboard.insights_router import router as insights_router
 from app.modules.voice_agent.router import router as voice_agent_router
+from app.modules.doctors.router import router as doctors_router
 from app.services.rag_service import rag_service
 
 # Import all models to ensure they are registered with Base
@@ -22,6 +23,7 @@ from app.modules.medications import models as medications_models
 from app.modules.appointments import models as appointments_models
 from app.modules.voice_agent import models as voice_agent_models
 from app.modules.dashboard import models as dashboard_models
+from app.modules.doctors import models as doctors_models
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -59,11 +61,22 @@ app.include_router(contact_router, prefix="/api", tags=["Contact"])
 app.include_router(chat_router, prefix="/api", tags=["Chatbot"])
 app.include_router(symptoms_router, prefix="/api", tags=["Symptoms"])
 app.include_router(medications_router, prefix="/api", tags=["Medications"])
-app.include_router(appointments_router, prefix="/api", tags=["Appointments"])
+app.include_router(appointments_router, prefix="/api/appointments", tags=["Appointments"])
 app.include_router(health_records_router, prefix="/api", tags=["Health Records"])
 app.include_router(dashboard_router, prefix="/api", tags=["Health Dashboard"])
 app.include_router(insights_router, prefix="/api/insights", tags=["Health Insights"])
 app.include_router(voice_agent_router, prefix="/api", tags=["Voice Agent"])
+app.include_router(doctors_router, prefix="/api/doctors", tags=["Doctors"])
+
+# Mount static files
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Create static directory if it doesn't exist
+if not os.path.exists("static"):
+    os.makedirs("static")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def read_root():

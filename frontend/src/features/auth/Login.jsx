@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import ThemeToggle from '../../components/ThemeToggle';
 
 const Login = () => {
     const [formData, setFormData] = useState({
@@ -10,6 +11,8 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    const [role, setRole] = useState('patient'); // 'patient' or 'doctor'
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -19,19 +22,17 @@ const Login = () => {
         setError('');
         setLoading(true);
 
-        // Get values directly from form elements to handle autofill
         const form = e.target;
         const emailValue = form.elements.username.value;
         const passwordValue = form.elements.password.value;
 
-        // Check if admin credentials
+        // Admin Login (Special Case)
         if (emailValue === 'admin@gmail.com' && passwordValue === 'admin') {
+            // ... (keep admin logic same)
             try {
-                const response = await fetch('http://localhost:8000/admin/login', {
+                const response = await fetch('http://localhost:8000/api/auth/admin/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: emailValue, password: passwordValue }),
                 });
 
@@ -47,52 +48,69 @@ const Login = () => {
             }
         }
 
-        // Regular user login
-        const formBody = new URLSearchParams();
-        formBody.append('username', emailValue);
-        formBody.append('password', passwordValue);
-
         try {
-            const response = await fetch('http://localhost:8000/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: formBody,
-            });
+            if (role === 'doctor') {
+                // Doctor Login
+                const response = await fetch('http://localhost:8000/api/doctors/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: emailValue, password: passwordValue }),
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Invalid credentials');
+                if (!response.ok) {
+                    throw new Error('Invalid doctor credentials');
+                }
+
+                const data = await response.json();
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('user_role', 'doctor');
+                localStorage.setItem('doctor_id', data.doctor_id);
+                localStorage.setItem('userEmail', data.email);
+                localStorage.setItem('userName', data.full_name);
+                navigate('/doctor/dashboard');
+            } else {
+                // Patient Login
+                const formBody = new URLSearchParams();
+                formBody.append('username', emailValue);
+                formBody.append('password', passwordValue);
+
+                const response = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formBody,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || 'Invalid credentials');
+                }
+
+                const data = await response.json();
+
+                if (!data.user_id) {
+                    throw new Error('Login failed: Invalid response from server.');
+                }
+
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('user_role', 'user');
+                localStorage.setItem('userId', data.user_id.toString());
+                localStorage.setItem('userEmail', data.email);
+                localStorage.setItem('userName', data.full_name || '');
+                navigate('/');
             }
-
-
-            const data = await response.json();
-
-            // Validate that we have all required data from the backend
-            if (!data.user_id || data.user_id === undefined || data.user_id === null) {
-                throw new Error('Login failed: Invalid response from server. Please try again or contact support.');
-            }
-
-            // Store authentication data
-            localStorage.setItem('token', data.access_token);
-            localStorage.setItem('user_role', 'user');
-            localStorage.setItem('userId', String(data.user_id));  // Ensure it's a string
-            localStorage.setItem('userEmail', data.email || '');
-            localStorage.setItem('userName', data.full_name || '');
-
-            console.log('Login successful, userId:', data.user_id); // Debug log
-            navigate('/');
         } catch (err) {
-            console.error('Login error:', err); // Debug log
-            setError(err.message || 'Invalid email or password. Please try again.');
+            console.error('Login error:', err);
+            setError(err.message || 'Login failed. Please check your credentials.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-300 relative">
+            <div className="absolute top-4 right-4">
+                <ThemeToggle />
+            </div>
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <Link to="/" className="flex items-center justify-center space-x-3 mb-6">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
@@ -102,16 +120,38 @@ const Login = () => {
                     </div>
                     <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">MediCareAI</span>
                 </Link>
-                <h2 className="text-center text-3xl font-extrabold text-gray-900">
-                    Welcome Back
+                <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+                    {role === 'doctor' ? 'Doctor Login' : 'Welcome Back'}
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
-                    Sign in to access your health dashboard
+                    {role === 'doctor' ? 'Access your practice dashboard' : 'Sign in to access your health dashboard'}
                 </p>
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-blue-100">
+                {/* Role Selection */}
+                <div className="bg-white dark:bg-gray-800 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex">
+                    <button
+                        onClick={() => setRole('patient')}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg shadow-sm transition-all ${role === 'patient'
+                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-gray-700'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                            }`}
+                    >
+                        Patient
+                    </button>
+                    <button
+                        onClick={() => setRole('doctor')}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg shadow-sm transition-all ${role === 'doctor'
+                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-gray-700'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                            }`}
+                    >
+                        Doctor
+                    </button>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-blue-100 dark:border-gray-700">
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         <div>
                             <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -126,7 +166,7 @@ const Login = () => {
                                     required
                                     value={formData.username}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     placeholder="you@example.com"
                                 />
                             </div>
