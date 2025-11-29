@@ -121,19 +121,28 @@ const BookingModal = ({ doctor, onClose, onSuccess }) => {
                             <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                                 {timeSlots.length > 0 ? (
                                     timeSlots.map((slot, index) => (
-                                        <button
-                                            key={index}
-                                            disabled={!slot.is_available}
-                                            onClick={() => setSelectedSlot(slot)}
-                                            className={`px-3 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 ${!slot.is_available
+                                        <div key={index} className="relative group">
+                                            <button
+                                                disabled={!slot.is_available}
+                                                onClick={() => setSelectedSlot(slot)}
+                                                title={!slot.is_available ? 'Already Booked' : ''}
+                                                className={`w-full px-3 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 ${!slot.is_available
                                                     ? 'bg-gray-50 dark:bg-gray-800 text-gray-400 cursor-not-allowed border-gray-200 dark:border-gray-700'
                                                     : selectedSlot === slot
                                                         ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-[1.02]'
                                                         : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:shadow-sm'
-                                                }`}
-                                        >
-                                            {slot.start_time}
-                                        </button>
+                                                    }`}
+                                            >
+                                                {slot.start_time}
+                                            </button>
+                                            {/* Tooltip for booked slots */}
+                                            {!slot.is_available && (
+                                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                                    Already Booked
+                                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                                                </div>
+                                            )}
+                                        </div>
                                     ))
                                 ) : (
                                     <div className="col-span-3 text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">

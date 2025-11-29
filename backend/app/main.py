@@ -12,6 +12,9 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dashboard.insights_router import router as insights_router
 from app.modules.voice_agent.router import router as voice_agent_router
 from app.modules.doctors.router import router as doctors_router
+from app.modules.admin.router import router as admin_router
+from app.modules.reviews.router import router as reviews_router
+from app.modules.notifications.router import router as notifications_router
 from app.services.rag_service import rag_service
 
 # Import all models to ensure they are registered with Base
@@ -24,6 +27,7 @@ from app.modules.appointments import models as appointments_models
 from app.modules.voice_agent import models as voice_agent_models
 from app.modules.dashboard import models as dashboard_models
 from app.modules.doctors import models as doctors_models
+from app.modules.reviews import models as reviews_models
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -67,6 +71,9 @@ app.include_router(dashboard_router, prefix="/api", tags=["Health Dashboard"])
 app.include_router(insights_router, prefix="/api/insights", tags=["Health Insights"])
 app.include_router(voice_agent_router, prefix="/api", tags=["Voice Agent"])
 app.include_router(doctors_router, prefix="/api/doctors", tags=["Doctors"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(reviews_router, prefix="/api/reviews", tags=["Reviews"])
+app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 
 # Mount static files
 from fastapi.staticfiles import StaticFiles

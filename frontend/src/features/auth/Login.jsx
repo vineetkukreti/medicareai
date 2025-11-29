@@ -28,25 +28,36 @@ const Login = () => {
 
         // Admin Login (Special Case)
         if (emailValue === 'admin@gmail.com' && passwordValue === 'admin') {
-            // ... (keep admin logic same)
             try {
+                console.log('🔐 Attempting admin login...');
                 const response = await fetch('http://localhost:8000/api/auth/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: emailValue, password: passwordValue }),
                 });
 
+                console.log('📡 Admin login response status:', response.status);
+
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('✅ Admin login successful, data:', data);
                     localStorage.setItem('admin_token', data.access_token);
                     localStorage.setItem('user_role', 'admin');
                     navigate('/admin/dashboard');
                     return;
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ Admin login failed, status:', response.status, 'response:', errorText);
+                    throw new Error('Admin login failed');
                 }
             } catch (err) {
-                console.error('Admin login error:', err);
+                console.error('💥 Admin login error:', err);
+                setError('Admin login failed. Please try again.');
+                setLoading(false);
+                return; // Important: prevent fallthrough to patient login
             }
         }
+
 
         try {
             if (role === 'doctor') {

@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ThemeToggle from '../../components/ThemeToggle';
 import DoctorAvatar from '../../components/DoctorAvatar';
+import RatingModal from '../reviews/RatingModal';
+import StarRating from '../reviews/StarRating';
 
 const PatientAppointments = () => {
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [ratingModalOpen, setRatingModalOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState(null);
+    const [reviews, setReviews] = useState({});
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -20,6 +25,23 @@ const PatientAppointments = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setAppointments(response.data);
+
+            // Check for existing reviews
+            const reviewsMap = {};
+            for (const appt of response.data) {
+                try {
+                    const reviewResponse = await axios.get(
+                        `http://localhost:8000/api/reviews/appointments/${appt.id}/check`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    if (reviewResponse.data.exists) {
+                        reviewsMap[appt.id] = reviewResponse.data.review;
+                    }
+                } catch (err) {
+                    console.error(`Error checking review for appointment ${appt.id}:`, err);
+                }
+            }
+            setReviews(reviewsMap);
         } catch (error) {
             console.error('Error fetching appointments:', error);
             if (error.response?.status === 401) {
@@ -41,6 +63,33 @@ const PatientAppointments = () => {
             fetchAppointments();
         } catch (error) {
             console.error('Error cancelling appointment:', error);
+        }
+    };
+
+    const handleRateDoctor = (appointment) => {
+        setSelectedAppointment(appointment);
+        setRatingModalOpen(true);
+    };
+
+    const handleSubmitReview = async ({ rating, comment }) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                'http://localhost:8000/api/reviews/',
+                {
+                    appointment_id: selectedAppointment.id,
+                    doctor_id: selectedAppointment.doctor_id,
+                    rating,
+                    comment
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Refresh appointments and reviews
+            await fetchAppointments();
+        } catch (error) {
+            console.error('Error submitting review:', error);
+            throw error;
         }
     };
 
@@ -151,6 +200,24 @@ const PatientAppointments = () => {
                                                 Cancel Request
                                             </button>
                                         )}
+
+                                        {/* Rate Doctor Button */}
+                                        {appt.doctor_id && reviews[appt.id] ? (
+                                            <div className="flex items-center space-x-2">
+                                                <StarRating rating={reviews[appt.id].rating} size="sm" />
+                                                <span className="text-xs text-green-600 font-medium">Reviewed</span>
+                                            </div>
+                                        ) : appt.doctor_id ? (
+                                            <button
+                                                onClick={() => handleRateDoctor(appt)}
+                                                className="px-4 py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 transition-colors flex items-center"
+                                            >
+                                                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                </svg>
+                                                Rate Doctor
+                                            </button>
+                                        ) : null}
                                     </div>
                                 </div>
                                 {appt.reason && (
@@ -165,6 +232,14 @@ const PatientAppointments = () => {
                     </div>
                 )}
             </div>
+
+            {/* Rating Modal */}
+            <RatingModal
+                isOpen={ratingModalOpen}
+                onClose={() => setRatingModalOpen(false)}
+                appointment={selectedAppointment}
+                onSubmit={handleSubmitReview}
+            />
         </div>
     );
 };
